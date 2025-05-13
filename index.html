@@ -2,12 +2,23 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>EquiliCore</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        :root {
+            --primary-color: #2193b0;
+            --secondary-color: #6dd5ed;
+            --accent-color: #ffeb3b;
+            --light-text-color: #f0f0f0;
+            --dark-text-color: #333;
+            --danger-color: #F44336;
+            --success-color: #4CAF50;
+        }
+
         body {
             margin: 0;
             padding: 0;
@@ -16,27 +27,35 @@
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #6dd5ed, #2193b0);
-            color: #fff;
-            overflow: hidden; /* Prevents scrollbars from canvas/UI */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            color: var(--light-text-color);
+            overflow: hidden;
+        }
+
+        #game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            height: 100vh; /* Ensure wrapper takes full viewport height */
         }
 
         #game-container {
-            width: 90vw;
+            width: 95vw;
+            height: 80vh; /* Adjusted for better vertical fit on various screens */
             max-width: 800px;
-            height: 70vh;
-            max-height: 600px;
+            max-height: 600px; /* Maintain a reasonable max aspect */
             border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            overflow: hidden; /* Canvas will be inside */
-            position: relative; /* For positioning elements like score */
-            background: #f0f0f0; /* Fallback if canvas doesn't cover */
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+            position: relative;
+            background: #2c3e50; /* Darker bg for canvas contrast */
+            overflow: hidden; /* Important for canvas and overlays */
         }
 
         canvas {
-            display: block; /* Removes baseline margin */
-            border-radius: 20px; /* Match container if canvas is directly child */
+            display: block;
+            border-radius: 20px; /* Should match parent if no other elements beside it */
         }
 
         .ui-overlay {
@@ -49,163 +68,194 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background-color: rgba(0, 0, 0, 0.7);
-            z-index: 10;
-            border-radius: 20px;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 100; /* High z-index for overlays */
+            border-radius: 20px; /* Match game-container */
             text-align: center;
             padding: 20px;
             box-sizing: border-box;
+            opacity: 0; /* Start hidden for transitions */
+            visibility: hidden; /* Start hidden for transitions */
+        }
+        
+        .ui-overlay.active {
+            opacity: 1;
+            visibility: visible;
         }
 
         .ui-overlay h1 {
-            font-size: 2.5em;
-            margin-bottom: 20px;
-            color: #ffeb3b; /* Vibrant yellow for titles */
+            font-size: clamp(1.8em, 5vw, 2.8em); /* Responsive font size */
+            margin-bottom: 15px;
+            color: var(--accent-color);
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
         }
          .ui-overlay h2 {
-            font-size: 1.8em;
-            margin-bottom: 15px;
-            color: #80deea; /* Light cyan */
+            font-size: clamp(1.4em, 4vw, 2em);
+            margin-bottom: 10px;
+            color: var(--secondary-color);
         }
 
-
         .ui-overlay p {
-            font-size: 1.2em;
-            margin-bottom: 30px;
-            color: #e0e0e0;
-            max-width: 80%;
+            font-size: clamp(0.9em, 2.5vw, 1.2em);
+            margin-bottom: 20px;
+            line-height: 1.6;
+            color: var(--light-text-color);
+            max-width: 90%;
+        }
+        .ui-overlay strong {
+            color: var(--accent-color);
         }
 
         .ui-button {
-            padding: 15px 30px;
-            font-size: 1.2em;
-            color: #2193b0;
+            padding: clamp(10px, 2vw, 15px) clamp(20px, 4vw, 30px);
+            font-size: clamp(0.9em, 2.5vw, 1.2em);
+            color: var(--primary-color);
             background-color: #fff;
             border: none;
             border-radius: 50px;
             cursor: pointer;
-            transition: transform 0.2s ease, background-color 0.2s ease;
+            transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
             margin: 10px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            font-weight: bold;
         }
 
         .ui-button:hover {
-            transform: scale(1.05);
-            background-color: #f1f1f1;
+            transform: translateY(-2px) scale(1.03);
+            background-color: #f8f8f8;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.2);
         }
         
         .ui-button:active {
-            transform: scale(0.98);
+            transform: translateY(0px) scale(0.98);
         }
 
-        #score-display {
+        #hud {
             position: absolute;
-            top: 20px;
-            left: 20px;
-            font-size: 1.5em;
-            color: #fff;
-            background-color: rgba(0,0,0,0.4);
-            padding: 10px 15px;
-            border-radius: 10px;
-            z-index: 5;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 50; /* Above canvas, below overlays */
+            pointer-events: none; /* Allow clicks through HUD */
+        }
+
+        #score-display, #flux-event-display {
+            font-size: clamp(1em, 3vw, 1.5em);
+            color: var(--light-text-color);
+            background-color: rgba(0,0,0,0.5);
+            padding: 8px 12px;
+            border-radius: 8px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
             opacity: 0; /* Hidden initially */
-            transition: opacity 0.5s ease;
         }
         
         #flux-event-display {
-            position: absolute;
-            top: 20px;
-            right: 20px; /* Changed from center to right */
-            /* transform: translateX(-50%); Remove horizontal centering if aligning to right */
-            font-size: 1.3em;
-            color: #ffeb3b;
-            background-color: rgba(255,0,0,0.6);
-            padding: 10px 15px;
-            border-radius: 10px;
-            z-index: 5;
-            opacity: 0;
-            transition: opacity 0.5s ease, transform 0.5s ease;
+            color: var(--accent-color);
+            background-color: rgba(var(--danger-color-rgb, 244, 67, 54), 0.7); /* Use var for RGB later */
         }
 
+
         #analytics-screen {
-            width: 90vw;
-            max-width: 800px;
-            /* height: auto; */ /* Let content define height */
-            padding: 30px;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            color: #333;
-            margin-top: 20px; /* Space from game container if shown separately */
-            display: none; /* Hidden by default */
-            flex-direction: column; /* Ensure children stack vertically */
-            align-items: center; /* Center chart container */
+            /* Uses ui-overlay class now for consistency, specific styles below */
+            justify-content: flex-start; /* Align content to top */
+            overflow-y: auto; /* Scroll if content overflows */
         }
         #analytics-screen h2 {
-             color: #2193b0; /* Theme color */
-             margin-bottom: 20px;
+             color: var(--primary-color);
+             margin-bottom: clamp(15px, 3vh, 20px);
         }
         .chart-container {
             width: 100%;
-            max-width: 700px; /* Control chart width */
-            margin-bottom: 20px;
+            max-width: 700px;
+            height: clamp(200px, 30vh, 300px); /* Responsive chart height */
+            margin-bottom: clamp(15px, 3vh, 20px);
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding:10px;
+            box-sizing: border-box;
+        }
+        #analytics-screen p {
+            background: rgba(0,0,0,0.1);
+            padding: 8px;
+            border-radius: 5px;
+            color: var(--dark-text-color); /* Text on light background needs contrast */
         }
     </style>
 </head>
 <body>
-    <div id="game-container">
+    <div id="game-wrapper">
+        <div id="game-container">
+            <div id="hud">
+                <div id="score-display">Harmony: 0</div>
+                <div id="flux-event-display">Flux Event!</div>
+            </div>
         </div>
 
-    <div id="start-screen" class="ui-overlay">
-        <h1>EquiliCore</h1>
-        <p>Nurture a dynamic core of energy by guiding orbs. Maintain equilibrium against surprising systemic shifts!</p>
-        <p><strong>Controls:</strong> Click and drag near an orb to apply a repulsive force and guide it.</p>
-        <button id="start-button" class="ui-button">Start Game ✨</button>
-    </div>
-
-    <div id="game-over-screen" class="ui-overlay" style="display: none;">
-        <h1>Game Over</h1>
-        <p>Your Core lost its equilibrium.</p>
-        <h2 id="final-score"></h2>
-        <button id="restart-button" class="ui-button">Play Again 🚀</button>
-        <button id="analytics-button" class="ui-button">View Analytics 📊</button>
-    </div>
-    
-    <div id="score-display">Harmony: 0</div>
-    <div id="flux-event-display">Flux Event!</div>
-
-    <div id="analytics-screen">
-        <h2>Post-Game Analytics</h2>
-        <div class="chart-container">
-            <canvas id="coreStabilityChart"></canvas>
+        <div id="start-screen" class="ui-overlay active"> <h1>EquiliCore</h1>
+            <h2>Protect the Core!</h2>
+            <p>Your mission is to nurture the central <strong>EquiliCore</strong>. Guide incoming <strong>Energy Orbs</strong> using your mouse to maintain its delicate balance within the <strong>Harmony Zone</strong>.</p>
+            <p>Survive disruptive <strong>Flux Events</strong>, adapt your strategy, and achieve the highest <strong>Harmony Quotient</strong> possible. The Core's life depends on you!</p>
+            <p><strong>Controls:</strong> Click and drag near an orb to apply a repulsive force and guide it. Release to 'flick'.</p>
+            <button id="start-button" class="ui-button">Begin Mission ✨</button>
         </div>
-        <p id="intervention-score-display">Intervention Economy: N/A</p>
-        <p id="flux-resilience-display">Flux Resilience: N/A</p>
-        <button id="back-to-game-over-button" class="ui-button">Back</button>
+
+        <div id="game-over-screen" class="ui-overlay">
+            <h1>Mission Failed</h1>
+            <p>The EquiliCore has destabilized.</p>
+            <h2 id="final-score"></h2>
+            <button id="restart-button" class="ui-button">Retry Mission 🚀</button>
+            <button id="analytics-button" class="ui-button">View Debrief 📊</button>
+        </div>
+        
+        <div id="analytics-screen" class="ui-overlay"> <h2>Mission Debrief</h2>
+            <div class="chart-container">
+                <canvas id="coreStabilityChart"></canvas>
+            </div>
+            <p id="intervention-score-display">Intervention Economy: N/A</p>
+            <p id="flux-resilience-display">Flux Resilience: N/A</p>
+            <button id="back-to-game-over-button" class="ui-button">Back</button>
+        </div>
     </div>
 
     <script>
+        // Matter.js Aliases
+        const Engine = Matter.Engine,
+            World = Matter.World,
+            Bodies = Matter.Bodies,
+            Body = Matter.Body,
+            Runner = Matter.Runner,
+            Events = Matter.Events,
+            Vector = Matter.Vector,
+            Composite = Matter.Composite;
+
         // Game Configuration
         const CORE_START_ENERGY = 100;
         const CORE_MAX_ENERGY = 200;
-        const CORE_MIN_ENERGY_THRESHOLD = 20; // Game over if below this for too long
+        const CORE_MIN_ENERGY_THRESHOLD = 20;
         const HARMONY_ZONE_LOW = 80;
         const HARMONY_ZONE_HIGH = 120;
-        const ORB_SPAWN_INTERVAL_MIN = 500; // ms
-        const ORB_SPAWN_INTERVAL_MAX = 2000; // ms
-        const ENERGY_DRAIN_RATE = 0.1; // Energy lost per frame if not in harmony
-        const ENERGY_GAIN_IN_HARMONY = 0.05; // Slight energy gain/stabilization in harmony
-        const CORE_UNSTABLE_DURATION_LIMIT = 3000; // ms, 3 seconds outside min threshold
-        
+        const ORB_SPAWN_INTERVAL_MIN = 800;
+        const ORB_SPAWN_INTERVAL_MAX = 2500;
+        const ENERGY_DRAIN_RATE = 0.07; // Adjusted for Matter.js feel
+        const ENERGY_GAIN_IN_HARMONY = 0.03;
+        const CORE_UNSTABLE_DURATION_LIMIT = 3000; // ms
+        const ORB_BASE_RADIUS = 10; // Base radius for Matter bodies
+        const CORE_RADIUS_MATTER = 40; // Core radius for Matter body
+
         // Game State
-        let core;
-        let orbs = [];
+        let engine, world, runner;
+        let coreGameData; // Manages energy, harmony, etc.
+        let coreBody; // Matter.js body for the core
+        let orbs = []; // Array to store {matterBody, gameOrb} pairs
         let particles = [];
         let harmonyQuotient = 0;
         let gameStartTime;
         let lastOrbSpawnTime = 0;
         let nextOrbSpawnInterval;
-        let gameState = 'start'; // 'start', 'playing', 'gameover', 'analytics'
+        let gameState = 'start';
         
         let coreStabilityHistory = [];
         let interventionCount = 0;
@@ -213,8 +263,11 @@
         let activeFluxEvent = null;
         let fluxEventTimer = 0;
         let nextFluxEventTime = 0;
-
         let coreUnstableTimer = 0;
+
+        // Mouse interaction state
+        let mouseDragStartPos = null;
+        let selectedOrbMatterBody = null;
 
         // DOM Elements
         const gameContainer = document.getElementById('game-container');
@@ -231,9 +284,9 @@
         const interventionScoreDisplay = document.getElementById('intervention-score-display');
         const fluxResilienceDisplay = document.getElementById('flux-resilience-display');
 
-
         let p5Canvas;
 
+        // --- P5.js Setup and Draw ---
         function setup() {
             let canvasWidth = gameContainer.offsetWidth;
             let canvasHeight = gameContainer.offsetHeight;
@@ -242,73 +295,58 @@
             
             textAlign(CENTER, CENTER);
             frameRate(60);
-            resetGame(); // Initialize variables without starting play
+            
+            // Convert danger color to RGB for dynamic use in flux display
+            const dangerColorVal = getComputedStyle(document.documentElement).getPropertyValue('--danger-color').trim();
+            // Assuming hex for now, like #F44336
+            if (dangerColorVal.startsWith('#')) {
+                const r = parseInt(dangerColorVal.substring(1,3), 16);
+                const g = parseInt(dangerColorVal.substring(3,5), 16);
+                const b = parseInt(dangerColorVal.substring(5,7), 16);
+                document.documentElement.style.setProperty('--danger-color-rgb', `${r},${g},${b}`);
+            }
+
+
+            initMatterJS();
+            resetGame(); 
 
             // UI Event Listeners
-            startButton.addEventListener('click', () => {
-                anime({
-                    targets: startScreen,
-                    opacity: 0,
-                    duration: 500,
-                    easing: 'easeInOutQuad',
-                    complete: () => {
-                        startScreen.style.display = 'none';
-                        startGame();
-                    }
-                });
-            });
-
-            restartButton.addEventListener('click', () => {
-                anime({
-                    targets: gameOverScreen,
-                    opacity: 0,
-                    duration: 500,
-                    easing: 'easeInOutQuad',
-                    complete: () => {
-                        gameOverScreen.style.display = 'none';
-                        startGame();
-                    }
-                });
-            });
-
-            analyticsButton.addEventListener('click', () => {
-                anime({
-                    targets: gameOverScreen,
-                    opacity: 0,
-                    duration: 300,
-                    easing: 'easeInOutQuad',
-                    complete: () => {
-                        gameOverScreen.style.display = 'none';
-                        analyticsScreen.style.display = 'flex'; // Use flex to align items
-                        analyticsScreen.style.opacity = 0;
-                        renderAnalytics();
-                        anime({
-                            targets: analyticsScreen,
-                            opacity: 1,
-                            duration: 500,
-                            easing: 'easeInOutQuad'
-                        });
-                    }
-                });
-            });
+            startButton.addEventListener('click', () => transitionScreen(startScreen, startGame));
+            restartButton.addEventListener('click', () => transitionScreen(gameOverScreen, startGame));
+            analyticsButton.addEventListener('click', () => transitionScreen(gameOverScreen, showAnalyticsScreen));
+            backToGameOverButton.addEventListener('click', () => transitionScreen(analyticsScreen, () => showScreen(gameOverScreen)));
             
-            backToGameOverButton.addEventListener('click', () => {
-                 anime({
-                    targets: analyticsScreen,
-                    opacity: 0,
-                    duration: 300,
-                    easing: 'easeInOutQuad',
-                    complete: () => {
-                        analyticsScreen.style.display = 'none';
-                        gameOverScreen.style.display = 'flex'; // Show it again
-                         anime({
-                            targets: gameOverScreen,
-                            opacity: 1,
-                            duration: 500,
-                            easing: 'easeInOutQuad'
-                        });
+            // Initial screen state
+            showScreen(startScreen); // Show start screen initially
+            scoreDisplay.style.opacity = 0;
+            fluxEventDisplay.style.opacity = 0;
+        }
+
+        function transitionScreen(fromScreen, toActionOrScreen) {
+            anime({
+                targets: fromScreen,
+                opacity: 0,
+                duration: 400,
+                easing: 'easeInOutQuad',
+                complete: () => {
+                    fromScreen.classList.remove('active');
+                    if (typeof toActionOrScreen === 'function' && !toActionOrScreen.classList) { // It's an action
+                        toActionOrScreen();
+                    } else if (toActionOrScreen.classList) { // It's a screen element
+                         showScreen(toActionOrScreen);
                     }
-                });
+                }
+            });
+        }
+
+        function showScreen(screenElement) {
+            screenElement.classList.add('active');
+            anime({
+                targets: screenElement,
+                opacity: [0, 1],
+                translateY: [30, 0], // Subtle entry animation
+                duration: 500,
+                easing: 'easeOutQuad'
             });
         }
         
@@ -316,56 +354,106 @@
             let canvasWidth = gameContainer.offsetWidth;
             let canvasHeight = gameContainer.offsetHeight;
             resizeCanvas(canvasWidth, canvasHeight);
-            if (core) core.pos = createVector(width / 2, height / 2); // Recenter core
+            // If core is static, its position is relative to canvas, so update if needed (usually fine)
+            // Matter.js handles scaling of its world somewhat, but positions might need update for static bodies if canvas center moves
+            if (coreBody) { // Re-center static core if canvas aspect ratio changes significantly
+                 Body.setPosition(coreBody, Vector.create(width / 2, height / 2));
+            }
+        }
+
+        function initMatterJS() {
+            engine = Engine.create();
+            world = engine.world;
+            world.gravity.y = 0; // No global gravity unless by Flux Event
+
+            // Create core body (static)
+            coreBody = Bodies.circle(width / 2, height / 2, CORE_RADIUS_MATTER, {
+                isStatic: true,
+                label: 'core',
+                friction: 0.1,
+                restitution: 0.5,
+                render: { visible: false } // We'll draw it with p5
+            });
+            World.add(world, coreBody);
+
+            // Collision event listener
+            Events.on(engine, 'collisionStart', handleCollisions);
+
+            runner = Runner.create();
+            Runner.run(runner, engine); // Start the Matter.js engine
         }
 
         function resetGame() {
-            core = new Core(width / 2, height / 2, CORE_START_ENERGY);
+            // Clear existing orbs from Matter world and game array
+            orbs.forEach(orb => World.remove(world, orb.matterBody));
             orbs = [];
+
+            coreGameData = new CoreGameData(CORE_START_ENERGY);
             particles = [];
             harmonyQuotient = 0;
-            lastOrbSpawnTime = 0;
+            lastOrbSpawnTime = millis(); // Use millis() for consistency
             nextOrbSpawnInterval = random(ORB_SPAWN_INTERVAL_MIN, ORB_SPAWN_INTERVAL_MAX);
             
             coreStabilityHistory = [];
             interventionCount = 0;
             fluxEventsSurvived = 0;
+            if (activeFluxEvent && activeFluxEvent.remove) activeFluxEvent.remove(); // Clean up previous flux
             activeFluxEvent = null;
             fluxEventTimer = 0;
-            nextFluxEventTime = random(15000, 25000); // First flux event in 15-25s
+            nextFluxEventTime = millis() + random(15000, 25000);
             coreUnstableTimer = 0;
 
-            scoreDisplay.style.opacity = 0;
-            fluxEventDisplay.style.opacity = 0;
+            world.gravity.x = 0; world.gravity.y = 0; // Reset global gravity
+
+            // Reset Matter.js core position if needed, though it's static
+            Body.setPosition(coreBody, Vector.create(width / 2, height / 2));
         }
 
         function startGame() {
             resetGame();
             gameState = 'playing';
             gameStartTime = millis();
-            scoreDisplay.style.opacity = 1;
+            
             anime({
-                targets: scoreDisplay,
+                targets: [scoreDisplay, fluxEventDisplay], // Animate HUD elements in
+                opacity: [0,1],
                 translateY: [-20, 0],
-                opacity: [0, 1],
-                duration: 800,
-                easing: 'easeOutElastic'
+                duration: 600,
+                easing: 'easeOutExpo',
+                delay: anime.stagger(100)
             });
+            if(fluxEventDisplay.textContent && fluxEventDisplay.style.opacity === "0") { // if a flux event was active pre-gameover
+                 fluxEventDisplay.style.opacity = 0; // ensure it's hidden until a new one
+            } else if (!activeFluxEvent) {
+                 fluxEventDisplay.style.opacity = 0;
+            }
         }
 
         function draw() {
-            background(30, 40, 70); // Dark blueish background
+            background(44, 62, 80); // p5 background matching game-container
 
             if (gameState === 'playing') {
                 handlePlayingState();
-            } else if (gameState === 'gameover') {
-                // Game over screen is handled by DOM elements
-                // Could draw something on canvas if desired, like a faded game state
-            } else if (gameState === 'start') {
-                // Start screen is handled by DOM
+            }
+            
+            // Draw Core (p5 representation based on game data)
+            coreGameData.display(coreBody.position.x, coreBody.position.y, CORE_RADIUS_MATTER);
+
+            // Draw Orbs (p5 representation for Matter bodies)
+            for (let i = orbs.length - 1; i >= 0; i--) {
+                const orbPair = orbs[i];
+                if (orbPair.matterBody) { // Check if body exists
+                    orbPair.gameOrb.display(orbPair.matterBody.position, orbPair.matterBody.angle);
+                    if (isOrbOffScreen(orbPair.matterBody, width, height)) {
+                        World.remove(world, orbPair.matterBody);
+                        orbs.splice(i, 1);
+                    }
+                } else { // safety net if matterBody somehow got removed
+                    orbs.splice(i,1);
+                }
             }
 
-            // Always draw particles if any
+            // Draw Particles
             for (let i = particles.length - 1; i >= 0; i--) {
                 particles[i].update();
                 particles[i].display();
@@ -376,171 +464,203 @@
         }
 
         function handlePlayingState() {
-            // Update and display core
-            core.update();
-            core.display();
+            // Update core game data (energy drain/gain)
+            coreGameData.update();
 
             // Spawn orbs
             if (millis() - lastOrbSpawnTime > nextOrbSpawnInterval) {
                 spawnOrb();
                 lastOrbSpawnTime = millis();
-                nextOrbSpawnInterval = random(ORB_SPAWN_INTERVAL_MIN, ORB_SPAWN_INTERVAL_MAX - (millis() - gameStartTime)/1000 * 10); // Difficulty increases slightly
-                if (nextOrbSpawnInterval < 300) nextOrbSpawnInterval = 300; // Cap minimum interval
-            }
-
-            // Update and display orbs
-            for (let i = orbs.length - 1; i >= 0; i--) {
-                let orb = orbs[i];
-                orb.update();
-                orb.display();
-
-                if (orb.isOffScreen(width, height)) {
-                    orbs.splice(i, 1);
-                    // Penalize for missed orbs?
-                    // core.energy -= 5; 
-                } else if (orb.checkCollision(core)) {
-                    core.absorb(orb);
-                    createBurst(orb.pos.x, orb.pos.y, orb.color);
-                    orbs.splice(i, 1);
-                }
+                let difficultyFactor = Math.max(0, (millis() - gameStartTime) / 100000); // Slow increase
+                nextOrbSpawnInterval = random(ORB_SPAWN_INTERVAL_MIN * (1-difficultyFactor*0.5), ORB_SPAWN_INTERVAL_MAX * (1-difficultyFactor));
+                nextOrbSpawnInterval = Math.max(300, nextOrbSpawnInterval); // Cap minimum interval
             }
             
-            // Handle Flux Events
             handleFluxEvents();
 
             // Update score
-            if (core.isInHarmony()) {
-                 harmonyQuotient += 0.5; // Points for being in harmony
+            if (coreGameData.isInHarmony()) {
+                 harmonyQuotient += 0.5;
             } else {
-                 harmonyQuotient += 0.1; // Still some points for playing
+                 harmonyQuotient += 0.1;
             }
             scoreDisplay.textContent = `Harmony: ${Math.floor(harmonyQuotient)}`;
             
-            // Record stability history for chart (every 30 frames for performance)
             if (frameCount % 30 === 0) {
-                 coreStabilityHistory.push({x: (millis() - gameStartTime)/1000, y: core.energy});
+                 coreStabilityHistory.push({x: (millis() - gameStartTime)/1000, y: coreGameData.energy});
             }
 
-            // Check game over condition
-            if (core.energy < CORE_MIN_ENERGY_THRESHOLD) {
-                coreUnstableTimer += deltaTime; // deltaTime is p5 global for frame duration
-                if (coreUnstableTimer > CORE_UNSTABLE_DURATION_LIMIT) {
-                    gameOver();
-                }
+            if (coreGameData.energy < CORE_MIN_ENERGY_THRESHOLD) {
+                coreUnstableTimer += deltaTime;
+                if (coreUnstableTimer > CORE_UNSTABLE_DURATION_LIMIT) gameOver();
             } else {
-                coreUnstableTimer = 0; // Reset timer if above threshold
+                coreUnstableTimer = 0;
             }
-             if (core.energy <= 0) { // Instant game over if energy hits 0
-                gameOver();
-            }
+             if (coreGameData.energy <= 0) gameOver();
         }
 
         function gameOver() {
             gameState = 'gameover';
             finalScoreDisplay.textContent = `Final Harmony: ${Math.floor(harmonyQuotient)}`;
             
-            anime({
-                targets: scoreDisplay,
-                opacity: 0,
-                duration: 300
-            });
-            if(activeFluxEvent) {
-                fluxEventDisplay.style.opacity = 0; // Hide flux display immediately
-            }
+            anime({ targets: [scoreDisplay, fluxEventDisplay], opacity: 0, duration: 300 });
+            if(activeFluxEvent) fluxEventDisplay.style.opacity = 0; // Hide flux display immediately on game over
 
-            gameOverScreen.style.display = 'flex';
-            anime({
-                targets: gameOverScreen,
-                opacity: [0, 1],
-                translateY: [50, 0],
-                duration: 800,
-                easing: 'easeOutElastic'
-            });
+            showScreen(gameOverScreen);
+        }
+        
+        function showAnalyticsScreen() {
+            renderAnalytics();
+            showScreen(analyticsScreen);
         }
 
+
         function spawnOrb() {
+            let radius = ORB_BASE_RADIUS + random(-2, 5);
+            let x, y;
             let edge = floor(random(4));
-            let x, y, vx, vy;
-            let orbSize = random(10, 25);
-            let type = random() > 0.6 ? 'negative' : 'positive'; // More positive orbs
-            
-            // Apply flux event modifications if active
+
+            if (edge === 0) { x = random(width); y = -radius*2; }
+            else if (edge === 1) { x = width + radius*2; y = random(height); }
+            else if (edge === 2) { x = random(width); y = height + radius*2; }
+            else { x = -radius*2; y = random(height); }
+
+            let type = random() > 0.6 ? 'negative' : 'positive';
             if (activeFluxEvent && activeFluxEvent.type === 'volatileOrbs') {
-                type = random() > 0.5 ? 'negative' : 'positive'; // More unpredictable
-                orbSize = random(5, 35);
+                type = random() > 0.5 ? 'negative' : 'positive';
+                radius = ORB_BASE_RADIUS + random(-5, 10);
             }
+            radius = Math.max(5, radius); // Ensure minimum radius
 
+            const gameOrb = new GameOrb(radius, type); // p5 visual properties
+            const matterOrb = Bodies.circle(x, y, radius, {
+                label: 'orb',
+                restitution: 0.6, // Bounciness
+                friction: 0.05,    // Air friction
+                frictionAir: 0.01, // Damping
+                density: 0.001, // Mass related
+                render: { visible: false }, // We draw with p5
+                gameOrbData: gameOrb // Link back to game orb data
+            });
 
-            if (edge === 0) { // Top
-                x = random(width); y = -orbSize;
-            } else if (edge === 1) { // Right
-                x = width + orbSize; y = random(height);
-            } else if (edge === 2) { // Bottom
-                x = random(width); y = height + orbSize;
-            } else { // Left
-                x = -orbSize; y = random(height);
-            }
-
-            let target = createVector(core.pos.x + random(-width/4, width/4), core.pos.y + random(-height/4, height/4));
-            let vel = p5.Vector.sub(target, createVector(x,y));
-            vel.normalize();
-            vel.mult(random(1, 3)); // Orb speed
+            // Aim towards general core area with some spread
+            let angleToCore = atan2(coreBody.position.y - y, coreBody.position.x - x);
+            let spread = random(-PI/8, PI/8);
+            let initialSpeed = random(1, 2.5);
+            if (activeFluxEvent && activeFluxEvent.type === 'fastOrbs') initialSpeed *= 1.8;
             
-            if (activeFluxEvent && activeFluxEvent.type === 'fastOrbs') {
-                 vel.mult(1.8);
+            Body.setVelocity(matterOrb, {
+                x: cos(angleToCore + spread) * initialSpeed,
+                y: sin(angleToCore + spread) * initialSpeed
+            });
+
+            orbs.push({matterBody: matterOrb, gameOrb: gameOrb});
+            World.add(world, matterOrb);
+        }
+
+        function handleCollisions(event) {
+            if (gameState !== 'playing') return;
+            const pairs = event.pairs;
+            for (let i = 0; i < pairs.length; i++) {
+                const pair = pairs[i];
+                const bodyA = pair.bodyA;
+                const bodyB = pair.bodyB;
+
+                if ((bodyA.label === 'core' && bodyB.label === 'orb') || (bodyB.label === 'core' && bodyA.label === 'orb')) {
+                    const orbBody = (bodyA.label === 'orb') ? bodyA : bodyB;
+                    const orbIndex = orbs.findIndex(o => o.matterBody === orbBody);
+                    if (orbIndex > -1) {
+                        coreGameData.absorb(orbBody.gameOrbData); // Use gameOrbData
+                        createBurst(orbBody.position.x, orbBody.position.y, orbBody.gameOrbData.color);
+                        
+                        World.remove(world, orbBody);
+                        orbs.splice(orbIndex, 1);
+                    }
+                }
+            }
+        }
+
+        function isOrbOffScreen(body, canvasWidth, canvasHeight) {
+            const boundsMargin = body.circleRadius * 3; // Generous margin
+            return (body.position.x < -boundsMargin || body.position.x > canvasWidth + boundsMargin ||
+                    body.position.y < -boundsMargin || body.position.y > canvasHeight + boundsMargin);
+        }
+
+        // --- Mouse Interaction for Matter.js ---
+        function mousePressed() {
+            if (gameState !== 'playing' || mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height) return;
+            interventionCount++;
+            const mousePos = Vector.create(mouseX, mouseY);
+            let closestOrbBody = null;
+            let minDistSq = Infinity;
+
+            for (const orbPair of orbs) {
+                const distSq = Vector.magnitudeSquared(Vector.sub(orbPair.matterBody.position, mousePos));
+                if (distSq < (orbPair.matterBody.circleRadius + 40) * (orbPair.matterBody.circleRadius + 40) && distSq < minDistSq) {
+                    minDistSq = distSq;
+                    closestOrbBody = orbPair.matterBody;
+                }
             }
 
-            orbs.push(new Orb(x, y, orbSize, type, vel));
+            if (closestOrbBody) {
+                selectedOrbMatterBody = closestOrbBody;
+                mouseDragStartPos = mousePos; // Record start for flick
+                // Apply initial impulse
+                const forceDir = Vector.normalise(Vector.sub(selectedOrbMatterBody.position, mousePos));
+                const impulseStrength = 0.001 * selectedOrbMatterBody.mass; // Adjust as needed
+                Body.applyForce(selectedOrbMatterBody, selectedOrbMatterBody.position, Vector.mult(forceDir, impulseStrength));
+                createInteractionEffect(selectedOrbMatterBody.position.x, selectedOrbMatterBody.position.y, true);
+            }
+            return false; // Prevent default
         }
 
         function mouseDragged() {
-            if (gameState !== 'playing') return;
-            interventionCount++;
-            let mousePos = createVector(mouseX, mouseY);
-            for (let orb of orbs) {
-                let d = p5.Vector.dist(mousePos, orb.pos);
-                if (d < 50 + orb.radius) { // Influence radius
-                    let force = p5.Vector.sub(orb.pos, mousePos); // Repulsive force
-                    force.normalize();
-                    force.mult(0.8); // Force strength
-                    orb.applyForce(force);
-                    createInteractionEffect(orb.pos.x, orb.pos.y);
-                }
-            }
-            return false; // Prevent default browser drag behavior
-        }
-        
-        function mousePressed() { // For tap-like interaction on first click
-            if (gameState !== 'playing') return;
-            interventionCount++; // Count this as an intervention too
-            let mousePos = createVector(mouseX, mouseY);
-            for (let orb of orbs) {
-                let d = p5.Vector.dist(mousePos, orb.pos);
-                if (d < 50 + orb.radius) {
-                    let force = p5.Vector.sub(orb.pos, mousePos);
-                    force.normalize();
-                    force.mult(1.2); // Stronger initial push
-                    orb.applyForce(force);
-                    createInteractionEffect(orb.pos.x, orb.pos.y, true);
-                }
-            }
-             return false;
+            if (gameState !== 'playing' || !selectedOrbMatterBody || mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height) return;
+            const mousePos = Vector.create(mouseX, mouseY);
+            const forceDir = Vector.normalise(Vector.sub(selectedOrbMatterBody.position, mousePos)); // Repulsive
+            // Continuous weaker force while dragging
+            const forceStrength = 0.0005 * selectedOrbMatterBody.mass; // Adjust as needed
+            Body.applyForce(selectedOrbMatterBody, selectedOrbMatterBody.position, Vector.mult(forceDir, forceStrength));
+            createInteractionEffect(selectedOrbMatterBody.position.x, selectedOrbMatterBody.position.y);
+            return false; // Prevent default
         }
 
-        function createBurst(x, y, orbColor) {
+        function mouseReleased() {
+            if (gameState !== 'playing' || !selectedOrbMatterBody || !mouseDragStartPos  || mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height) {
+                 selectedOrbMatterBody = null;
+                 mouseDragStartPos = null;
+                 return;
+            }
+            
+            const mouseReleasePos = Vector.create(mouseX, mouseY);
+            // Calculate flick vector and apply as a stronger, one-time impulse
+            const flickVector = Vector.sub(mouseDragStartPos, mouseReleasePos); // Opposite to drag for push
+            const flickStrength = Vector.magnitude(flickVector) * 0.00002 * selectedOrbMatterBody.mass; // Tune this!
+            
+            if (Vector.magnitudeSquared(flickVector) > 10) { // Only if flick is significant
+                 Body.applyForce(selectedOrbMatterBody, selectedOrbMatterBody.position, Vector.mult(Vector.normalise(flickVector), flickStrength));
+                 createInteractionEffect(selectedOrbMatterBody.position.x, selectedOrbMatterBody.position.y, true);
+            }
+
+            selectedOrbMatterBody = null;
+            mouseDragStartPos = null;
+            return false; // Prevent default
+        }
+
+
+        function createBurst(x, y, orbColorVal) {
             let numParticles = 20;
-            let baseCol = color(orbColor);
+            let baseCol = color(orbColorVal); // p5 color object
             for (let i = 0; i < numParticles; i++) {
                 let pColor = color(hue(baseCol), saturation(baseCol) * random(0.7,1), brightness(baseCol)*random(0.7,1), 200);
                 particles.push(new Particle(x, y, pColor));
             }
-            // Add subtle screen shake for absorption
             anime({
-                targets: '#game-container',
-                translateX: [ { value: random(-3,3), duration: 50}, { value: 0, duration: 50, delay: 50}],
-                translateY: [ { value: random(-3,3), duration: 50}, { value: 0, duration: 50, delay: 50}],
+                targets: '#game-container', // Target the container itself
+                translateX: [ { value: random(-2,2), duration: 40}, { value: 0, duration: 40, delay: 40}],
+                translateY: [ { value: random(-2,2), duration: 40}, { value: 0, duration: 40, delay: 40}],
                 easing: 'easeInOutSine',
-                duration: 150
+                duration: 120
             });
         }
         
@@ -548,119 +668,106 @@
             let numParticles = strong ? 8 : 4;
             let pColor = color(200, 200, 255, 150);
             for (let i = 0; i < numParticles; i++) {
-                 particles.push(new Particle(x, y, pColor, random(1, strong ? 3 : 2)));
+                 particles.push(new Particle(x, y, pColor, random(1, strong ? 2.5 : 1.8)));
             }
         }
         
-        // FLUX EVENTS
+        // --- Flux Events ---
         const fluxEventTypes = [
             { 
-                name: "Gravity Shift!", 
-                duration: 8000, // ms
-                type: 'gravityShift',
-                apply: () => { 
-                    for(let orb of orbs) orb.tempGravity = createVector(random(-0.1, 0.1), random(-0.05, 0.15)); 
-                },
-                remove: () => { for(let orb of orbs) orb.tempGravity = null; }
+                name: "Gravity Shift!", duration: 8000, type: 'gravityShift',
+                apply: () => { world.gravity.x = random(-0.1, 0.1); world.gravity.y = random(0.05, 0.2);},
+                remove: () => { world.gravity.x = 0; world.gravity.y = 0; }
             },
             { 
-                name: "Volatile Orbs!", 
-                duration: 10000, 
-                type: 'volatileOrbs', // Handled in spawnOrb
-                apply: () => {}, 
-                remove: () => {} 
+                name: "Volatile Orbs!", duration: 10000, type: 'volatileOrbs', apply: () => {}, remove: () => {} 
             },
             { 
-                name: "Fast Orbs!", 
-                duration: 7000, 
-                type: 'fastOrbs', // Handled in spawnOrb and Orb update for existing
-                apply: () => { orbs.forEach(o => o.vel.mult(1.5));}, 
-                remove: () => { orbs.forEach(o => o.vel.div(1.5));} 
+                name: "Fast Orbs!", duration: 7000, type: 'fastOrbs', apply: () => {}, remove: () => {} 
             },
             {
-                name: "Core Overcharge!",
-                duration: 5000,
-                type: 'coreOvercharge',
-                apply: () => { core.overchargeFactor = 1.5; }, // Core gains/loses energy faster
-                remove: () => { core.overchargeFactor = 1.0; }
+                name: "Core Overcharge!", duration: 6000, type: 'coreOvercharge',
+                apply: () => { coreGameData.overchargeFactor = 1.6; },
+                remove: () => { coreGameData.overchargeFactor = 1.0; }
+            },
+            {
+                name: "Repulsive Core!", duration: 7000, type: 'repulsiveCore',
+                apply: () => { coreGameData.isRepulsive = true; /* Logic in orb interaction if needed or as a general force */ },
+                remove: () => { coreGameData.isRepulsive = false; }
             }
         ];
 
         function triggerFluxEvent() {
-            if (activeFluxEvent) return; // Only one at a time
+            if (activeFluxEvent) return;
 
             activeFluxEvent = random(fluxEventTypes);
             activeFluxEvent.apply();
             fluxEventTimer = activeFluxEvent.duration;
-            nextFluxEventTime = millis() + activeFluxEvent.duration + random(10000, 20000); // Next one after this ends + delay
+            nextFluxEventTime = millis() + activeFluxEvent.duration + random(10000, 20000);
 
             fluxEventDisplay.textContent = activeFluxEvent.name;
-            fluxEventDisplay.style.backgroundColor = `rgba(${floor(random(150,255))}, ${floor(random(0,100))}, ${floor(random(0,100))}, 0.7)`;
+            const randomFluxColor = `rgba(${floor(random(200,255))}, ${floor(random(50,150))}, ${floor(random(50,100))}, 0.8)`;
+            fluxEventDisplay.style.backgroundColor = randomFluxColor;
             
             anime({
                 targets: fluxEventDisplay,
-                opacity: [0, 1],
-                scale: [0.5, 1],
-                translateY: [-20, 0],
-                duration: 600,
-                easing: 'easeOutElastic'
+                opacity: [0, 1], scale: [0.5, 1], translateY: [-15, 0],
+                duration: 600, easing: 'easeOutElastic'
             });
         }
 
         function handleFluxEvents() {
-            if (millis() > nextFluxEventTime && !activeFluxEvent) {
+            if (millis() > nextFluxEventTime && !activeFluxEvent && gameState === 'playing') {
                 triggerFluxEvent();
             }
 
             if (activeFluxEvent) {
                 fluxEventTimer -= deltaTime;
                 if (fluxEventTimer <= 0) {
-                    activeFluxEvent.remove();
+                    if(activeFluxEvent.remove) activeFluxEvent.remove();
                     activeFluxEvent = null;
                     fluxEventsSurvived++;
                     anime({
-                        targets: fluxEventDisplay,
-                        opacity: 0,
-                        scale: 0.8,
-                        duration: 400,
-                        easing: 'easeInQuad'
+                        targets: fluxEventDisplay, opacity: 0, scale: 0.8,
+                        duration: 400, easing: 'easeInQuad'
                     });
                 } else {
-                    // Some flux events might need continuous application in draw loop
-                    if(activeFluxEvent.type === 'gravityShift' && activeFluxEvent.apply) {
-                        // Gravity is applied to orb.vel directly in orb.update
+                    // Continuous effects for some flux events (if not handled by Matter.js global changes)
+                    if (activeFluxEvent.type === 'repulsiveCore') {
+                        orbs.forEach(orbPair => {
+                            const forceToCore = Vector.sub(orbPair.matterBody.position, coreBody.position);
+                            const distSq = Vector.magnitudeSquared(forceToCore);
+                            if (distSq < (CORE_RADIUS_MATTER * 5) ** 2) { // Effect radius
+                                const strength = 0.0001 * orbPair.matterBody.mass * (CORE_RADIUS_MATTER**2 / Math.max(distSq,100)); // Inverse square-ish
+                                Body.applyForce(orbPair.matterBody, orbPair.matterBody.position, Vector.mult(Vector.normalise(forceToCore), strength));
+                            }
+                        });
                     }
                 }
             }
         }
 
 
-        // --- Classes ---
-        class Core {
-            constructor(x, y, initialEnergy) {
-                this.pos = createVector(x, y);
-                this.baseRadius = 30;
+        // --- Game Data Classes (Separated from Matter.js bodies for clarity) ---
+        class CoreGameData {
+            constructor(initialEnergy) {
                 this.energy = initialEnergy;
-                this.targetRadius = this.baseRadius + this.energy / 10;
-                this.currentRadius = this.targetRadius;
-                this.color = color(100, 200, 255); // Calm blue
+                this.color = color(100, 200, 255);
                 this.harmonyPulse = 0;
-                this.overchargeFactor = 1.0; // For flux event
+                this.overchargeFactor = 1.0;
+                this.isRepulsive = false; // For flux event
             }
 
             update() {
-                this.targetRadius = this.baseRadius + this.energy / 15; // Energy affects size
-                this.currentRadius = lerp(this.currentRadius, this.targetRadius, 0.1);
-
                 if (this.isInHarmony()) {
-                    this.energy += ENERGY_GAIN_IN_HARMONY * this.overchargeFactor; // Slow gain or stabilization
-                    this.color = color(100, 220, 180); // Greenish tint for harmony
+                    this.energy += ENERGY_GAIN_IN_HARMONY * this.overchargeFactor;
+                    this.color = color(100, 220, 180, 230); // Harmony: vibrant green
                 } else {
-                    this.energy -= ENERGY_DRAIN_RATE * this.overchargeFactor; // Drain if not in harmony
+                    this.energy -= ENERGY_DRAIN_RATE * this.overchargeFactor;
                     if (this.energy < HARMONY_ZONE_LOW) {
-                        this.color = color(255, 150, 100); // Orangey when low
-                    } else {
-                        this.color = color(200, 180, 255); // Purplish when high
+                         this.color = color(255, map(this.energy, 0, HARMONY_ZONE_LOW, 80, 150), map(this.energy, 0, HARMONY_ZONE_LOW, 50, 100), 230); // Danger: orange to red
+                    } else { // Above harmony zone
+                        this.color = color(map(this.energy, HARMONY_ZONE_HIGH, CORE_MAX_ENERGY, 200, 230), 180, 255, 230); // High: vibrant purple/blue
                     }
                 }
                 this.energy = constrain(this.energy, 0, CORE_MAX_ENERGY);
@@ -670,222 +777,118 @@
                 return this.energy >= HARMONY_ZONE_LOW && this.energy <= HARMONY_ZONE_HIGH;
             }
 
-            absorb(orb) {
+            absorb(orbGameData) {
                 let energyChange = 0;
-                if (orb.type === 'positive') {
-                    energyChange = orb.radius * 1.5; // Bigger orbs give more
+                if (orbGameData.type === 'positive') {
+                    energyChange = orbGameData.radius * 1.2;
                 } else {
-                    energyChange = -orb.radius * 2; // Negative orbs are more impactful
+                    energyChange = -orbGameData.radius * 1.8;
                 }
                 this.energy += energyChange * this.overchargeFactor;
                 
-                // Animate score text for absorption
                 let popup = document.createElement('div');
                 popup.textContent = (energyChange * this.overchargeFactor > 0 ? '+' : '') + Math.round(energyChange * this.overchargeFactor);
-                popup.style.position = 'absolute';
-                popup.style.left = `${this.pos.x + random(-20,20)}px`;
-                popup.style.top = `${this.pos.y - this.currentRadius - 20}px`;
-                popup.style.color = energyChange > 0 ? '#4CAF50' : '#F44336';
-                popup.style.fontSize = '1.5em';
-                popup.style.fontWeight = 'bold';
-                popup.style.textShadow = '1px 1px 2px black';
-                document.getElementById('game-container').appendChild(popup);
-
-                anime({
-                    targets: popup,
-                    translateY: -50,
-                    opacity: 0,
-                    duration: 1500,
-                    easing: 'easeOutExpo',
-                    complete: () => {
-                        popup.remove();
-                    }
+                Object.assign(popup.style, {
+                    position: 'absolute', left: `${coreBody.position.x + random(-20,20)}px`, top: `${coreBody.position.y - CORE_RADIUS_MATTER - 20}px`,
+                    color: energyChange > 0 ? 'var(--success-color)' : 'var(--danger-color)',
+                    fontSize: 'clamp(1.2em, 3vw, 1.8em)', fontWeight: 'bold', textShadow: '1px 1px 2px black', pointerEvents: 'none'
                 });
+                gameContainer.appendChild(popup);
+                anime({ targets: popup, translateY: -40, opacity: 0, duration: 1500, easing: 'easeOutExpo', complete: () => popup.remove() });
             }
 
-            display() {
+            display(x, y, matterRadius) {
+                let visualRadius = matterRadius + (this.energy - CORE_START_ENERGY) / 8; // Size reflects energy a bit
+                visualRadius = constrain(visualRadius, matterRadius * 0.8, matterRadius * 1.5);
+
                 // Harmony Zone visual
-                let hzLowRadius = this.baseRadius + HARMONY_ZONE_LOW / 15;
-                let hzHighRadius = this.baseRadius + HARMONY_ZONE_HIGH / 15;
+                let hzLowRadius = matterRadius + (HARMONY_ZONE_LOW - CORE_START_ENERGY)/8;
+                let hzHighRadius = matterRadius + (HARMONY_ZONE_HIGH - CORE_START_ENERGY)/8;
+                noFill(); strokeWeight(2); stroke(255, 255, 255, 40);
+                ellipse(x, y, hzLowRadius * 2.2, hzLowRadius * 2.2); // Make zone slightly larger than core visual
+                ellipse(x, y, hzHighRadius * 2.2, hzHighRadius * 2.2);
                 
-                noFill();
-                strokeWeight(2);
-                stroke(255, 255, 255, 50);
-                ellipse(this.pos.x, this.pos.y, hzLowRadius * 2, hzLowRadius * 2);
-                ellipse(this.pos.x, this.pos.y, hzHighRadius * 2, hzHighRadius * 2);
-                
-                // Pulsing effect when in harmony
                 if (this.isInHarmony()) {
-                    this.harmonyPulse += 0.1;
-                    let pulseSize = sin(this.harmonyPulse) * 5;
-                    strokeWeight(3);
-                    stroke(hue(this.color), saturation(this.color), brightness(this.color), 100);
-                    ellipse(this.pos.x, this.pos.y, (this.currentRadius + pulseSize) * 2, (this.currentRadius + pulseSize) * 2);
+                    this.harmonyPulse += 0.08;
+                    let pulseSize = sin(this.harmonyPulse) * 4;
+                    strokeWeight(3); stroke(hue(this.color), saturation(this.color), brightness(this.color), 120);
+                    ellipse(x, y, (visualRadius + pulseSize) * 2, (visualRadius + pulseSize) * 2);
                 }
 
-                // Core body
-                noStroke();
-                fill(this.color);
-                ellipse(this.pos.x, this.pos.y, this.currentRadius * 2, this.currentRadius * 2);
-
-                // Inner glow
-                for (let i = 0; i < 3; i++) {
-                    fill(hue(this.color), saturation(this.color), brightness(this.color) + i*10, 50 - i*15);
-                    ellipse(this.pos.x, this.pos.y, (this.currentRadius - i*5) * 2, (this.currentRadius - i*5) * 2);
+                noStroke(); fill(this.color);
+                ellipse(x, y, visualRadius * 2, visualRadius * 2);
+                for (let i = 0; i < 3; i++) { // Inner glow
+                    fill(hue(this.color), saturation(this.color), brightness(this.color) + i*10, 40 - i*12);
+                    ellipse(x, y, (visualRadius - i*4) * 2, (visualRadius - i*4) * 2);
                 }
             }
         }
 
-        class Orb {
-            constructor(x, y, r, type, vel) {
-                this.pos = createVector(x, y);
-                this.vel = vel || p5.Vector.random2D().mult(random(1,2));
-                this.acc = createVector(0, 0);
-                this.radius = r;
-                this.type = type; // 'positive' or 'negative'
-                this.color = (type === 'positive') ? color(180, 255, 180, 220) : color(255, 180, 180, 220); // Light green / Light red
-                this.maxSpeed = 4;
-                this.tempGravity = null; // For flux event
+        class GameOrb { // Visual/Game properties, distinct from Matter body
+            constructor(radius, type) {
+                this.radius = radius;
+                this.type = type;
+                this.color = (type === 'positive') ? color(150, 255, 150, 220) : color(255, 150, 150, 220);
             }
 
-            applyForce(force) {
-                this.acc.add(force);
-            }
-
-            update() {
-                if(this.tempGravity) { // Apply flux gravity
-                    this.applyForce(this.tempGravity);
-                }
-                
-                // Attraction/repulsion to core (subtle baseline behavior)
-                let coreDirection = p5.Vector.sub(core.pos, this.pos);
-                let distToCore = coreDirection.mag();
-                coreDirection.normalize();
-                if (this.type === 'positive') {
-                     coreDirection.mult(20 / (distToCore + 0.1)); // Weaker attraction
-                } else {
-                     coreDirection.mult(-10 / (distToCore + 0.1)); // Slight repulsion for negative
-                }
-                //this.applyForce(coreDirection);
-
-
-                this.vel.add(this.acc);
-                this.vel.limit(this.maxSpeed * (activeFluxEvent && activeFluxEvent.type === 'fastOrbs' ? 1.8 : 1));
-                this.pos.add(this.vel);
-                this.acc.mult(0); // Reset acceleration
-            }
-
-            display() {
-                noStroke();
-                fill(this.color);
-                ellipse(this.pos.x, this.pos.y, this.radius * 2, this.radius * 2);
-                // Inner highlight
+            display(pos, angle) {
+                push(); // p5 instance mode for transformations
+                translate(pos.x, pos.y);
+                rotate(angle); // Show Matter.js body rotation
+                noStroke(); fill(this.color);
+                ellipse(0, 0, this.radius * 2);
                 fill(red(this.color)+30, green(this.color)+30, blue(this.color)+30, 100);
-                ellipse(this.pos.x - this.radius*0.2, this.pos.y - this.radius*0.2, this.radius, this.radius);
-            }
-
-            checkCollision(coreObj) {
-                return p5.Vector.dist(this.pos, coreObj.pos) < this.radius + coreObj.currentRadius;
-            }
-
-            isOffScreen(w, h) {
-                return (this.pos.x < -this.radius * 2 || this.pos.x > w + this.radius * 2 ||
-                        this.pos.y < -this.radius * 2 || this.pos.y > h + this.radius * 2);
+                ellipse(-this.radius*0.15, -this.radius*0.15, this.radius*0.8, this.radius*0.8); // Highlight
+                pop();
             }
         }
 
-        class Particle {
+        class Particle { // Standard p5 particle
             constructor(x, y, pColor, speedMultiplier = 1) {
                 this.pos = createVector(x, y);
                 this.vel = p5.Vector.random2D().mult(random(1, 3) * speedMultiplier);
                 this.lifespan = 255;
-                this.pColor = pColor || color(255, 220, 150, 200); // Default particle color
+                this.pColor = pColor || color(255, 220, 150, 200);
                 this.radius = random(2,5);
             }
-
-            update() {
-                this.vel.mult(0.95); // Slow down
-                this.pos.add(this.vel);
-                this.lifespan -= 5;
-            }
-
-            display() {
-                noStroke();
-                fill(red(this.pColor), green(this.pColor), blue(this.pColor), this.lifespan);
-                ellipse(this.pos.x, this.pos.y, this.radius * 2);
-            }
-
-            isFinished() {
-                return this.lifespan < 0;
-            }
+            update() { this.vel.mult(0.96); this.pos.add(this.vel); this.lifespan -= 4; }
+            display() { noStroke(); fill(red(this.pColor), green(this.pColor), blue(this.pColor), this.lifespan); ellipse(this.pos.x, this.pos.y, this.radius * 2); }
+            isFinished() { return this.lifespan < 0; }
         }
         
-        // --- Analytics ---
+        // --- Analytics (Chart.js) ---
         let coreStabilityChartInstance = null;
         function renderAnalytics() {
-            // 1. Core Stability Graph
             const ctx = document.getElementById('coreStabilityChart').getContext('2d');
-            if(coreStabilityChartInstance) {
-                coreStabilityChartInstance.destroy(); // Destroy previous chart if exists
-            }
+            if(coreStabilityChartInstance) coreStabilityChartInstance.destroy();
+            
             coreStabilityChartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
                     datasets: [{
-                        label: 'Core Energy Over Time',
-                        data: coreStabilityHistory, // [{x: time, y: energy}, ...]
-                        borderColor: 'rgb(75, 192, 192)',
-                        tension: 0.1,
-                        fill: false
+                        label: 'Core Energy', data: coreStabilityHistory,
+                        borderColor: 'rgb(75, 192, 192)', tension: 0.1, fill: false, pointRadius: 1
                     },
-                    {
-                        label: 'Harmony Zone (Low)',
-                        data: coreStabilityHistory.map(d => ({x: d.x, y: HARMONY_ZONE_LOW})),
-                        borderColor: 'rgba(255, 200, 100, 0.5)',
-                        borderDash: [5,5],
-                        pointRadius: 0,
-                        fill: false
-                    },
-                    {
-                        label: 'Harmony Zone (High)',
-                        data: coreStabilityHistory.map(d => ({x: d.x, y: HARMONY_ZONE_HIGH})),
-                        borderColor: 'rgba(255, 200, 100, 0.5)',
-                        borderDash: [5,5],
-                        pointRadius: 0,
-                        fill: false
-                    }]
+                    { label: 'Harmony Low', data: coreStabilityHistory.map(d => ({x: d.x, y: HARMONY_ZONE_LOW})), borderColor: 'rgba(255, 200, 100, 0.6)', borderDash: [5,5], pointRadius: 0, fill: false},
+                    { label: 'Harmony High', data: coreStabilityHistory.map(d => ({x: d.x, y: HARMONY_ZONE_HIGH})), borderColor: 'rgba(255, 200, 100, 0.6)', borderDash: [5,5], pointRadius: 0, fill: false}
+                    ]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
+                    responsive: true, maintainAspectRatio: false,
                     scales: {
-                        x: {
-                            type: 'linear', // If time is numeric seconds
-                            title: { display: true, text: 'Time (seconds)' }
-                        },
-                        y: {
-                            title: { display: true, text: 'Core Energy' },
-                            min: 0,
-                            max: CORE_MAX_ENERGY 
-                        }
+                        x: { type: 'linear', title: { display: true, text: 'Time (s)', color:'#333' }, ticks:{color:'#333'} },
+                        y: { title: { display: true, text: 'Energy', color:'#333'}, min: 0, max: CORE_MAX_ENERGY, ticks:{color:'#333'} }
                     },
-                    plugins: {
-                        title: {
-                            display: true,
-                            text: 'Core Stability Timeline'
-                        }
-                    }
+                    plugins: { title: { display: true, text: 'Core Stability Timeline', color:'#333', font:{size:16} }, legend:{labels:{color:'#333'}} }
                 }
             });
 
-            // 2. Intervention Economy Score
-            let durationSeconds = (millis() - gameStartTime) / 1000;
-            let interventionsPerMinute = interventionCount > 0 && durationSeconds > 0 ? (interventionCount / durationSeconds) * 60 : 0;
-            let economyScore = 1000 - interventionsPerMinute * 5; // Simple formula
+            let durationSeconds = coreStabilityHistory.length > 0 ? coreStabilityHistory[coreStabilityHistory.length-1].x : (millis() - gameStartTime) / 1000;
+            durationSeconds = Math.max(durationSeconds, 1); // Avoid division by zero
+            let interventionsPerMinute = interventionCount > 0 ? (interventionCount / durationSeconds) * 60 : 0;
+            let economyScore = 1000 - interventionsPerMinute * 3 - interventionCount * 0.5; // Tuned formula
             economyScore = Math.max(0, Math.floor(economyScore));
-            interventionScoreDisplay.textContent = `Intervention Economy Score: ${economyScore} (Interventions: ${interventionCount}, IPM: ${interventionsPerMinute.toFixed(1)})`;
-
-            // 3. Flux Resilience Rating
+            interventionScoreDisplay.textContent = `Intervention Economy: ${economyScore} (Interventions: ${interventionCount}, IPM: ${interventionsPerMinute.toFixed(1)})`;
             fluxResilienceDisplay.textContent = `Flux Events Survived: ${fluxEventsSurvived}`;
         }
 
