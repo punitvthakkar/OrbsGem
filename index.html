@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EquiliCore</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #6dd5ed, #2193b0);
+            color: #fff;
+            overflow: hidden; /* Prevents scrollbars from canvas/UI */
+        }
+
+        #game-container {
+            width: 90vw;
+            max-width: 800px;
+            height: 70vh;
+            max-height: 600px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden; /* Canvas will be inside */
+            position: relative; /* For positioning elements like score */
+            background: #f0f0f0; /* Fallback if canvas doesn't cover */
+        }
+
+        canvas {
+            display: block; /* Removes baseline margin */
+            border-radius: 20px; /* Match container if canvas is directly child */
+        }
+
+        .ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 10;
+            border-radius: 20px;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .ui-overlay h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            color: #ffeb3b; /* Vibrant yellow for titles */
+        }
+         .ui-overlay h2 {
+            font-size: 1.8em;
+            margin-bottom: 15px;
+            color: #80deea; /* Light cyan */
+        }
+
+
+        .ui-overlay p {
+            font-size: 1.2em;
+            margin-bottom: 30px;
+            color: #e0e0e0;
+            max-width: 80%;
+        }
+
+        .ui-button {
+            padding: 15px 30px;
+            font-size: 1.2em;
+            color: #2193b0;
+            background-color: #fff;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s ease, background-color 0.2s ease;
+            margin: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .ui-button:hover {
+            transform: scale(1.05);
+            background-color: #f1f1f1;
+        }
+        
+        .ui-button:active {
+            transform: scale(0.98);
+        }
+
+        #score-display {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 1.5em;
+            color: #fff;
+            background-color: rgba(0,0,0,0.4);
+            padding: 10px 15px;
+            border-radius: 10px;
+            z-index: 5;
+            opacity: 0; /* Hidden initially */
+            transition: opacity 0.5s ease;
+        }
+        
+        #flux-event-display {
+            position: absolute;
+            top: 20px;
+            right: 20px; /* Changed from center to right */
+            /* transform: translateX(-50%); Remove horizontal centering if aligning to right */
+            font-size: 1.3em;
+            color: #ffeb3b;
+            background-color: rgba(255,0,0,0.6);
+            padding: 10px 15px;
+            border-radius: 10px;
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        #analytics-screen {
+            width: 90vw;
+            max-width: 800px;
+            /* height: auto; */ /* Let content define height */
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            color: #333;
+            margin-top: 20px; /* Space from game container if shown separately */
+            display: none; /* Hidden by default */
+            flex-direction: column; /* Ensure children stack vertically */
+            align-items: center; /* Center chart container */
+        }
+        #analytics-screen h2 {
+             color: #2193b0; /* Theme color */
+             margin-bottom: 20px;
+        }
+        .chart-container {
+            width: 100%;
+            max-width: 700px; /* Control chart width */
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        </div>
+
+    <div id="start-screen" class="ui-overlay">
+        <h1>EquiliCore</h1>
+        <p>Nurture a dynamic core of energy by guiding orbs. Maintain equilibrium against surprising systemic shifts!</p>
+        <p><strong>Controls:</strong> Click and drag near an orb to apply a repulsive force and guide it.</p>
+        <button id="start-button" class="ui-button">Start Game ✨</button>
+    </div>
+
+    <div id="game-over-screen" class="ui-overlay" style="display: none;">
+        <h1>Game Over</h1>
+        <p>Your Core lost its equilibrium.</p>
+        <h2 id="final-score"></h2>
+        <button id="restart-button" class="ui-button">Play Again 🚀</button>
+        <button id="analytics-button" class="ui-button">View Analytics 📊</button>
+    </div>
+    
+    <div id="score-display">Harmony: 0</div>
+    <div id="flux-event-display">Flux Event!</div>
+
+    <div id="analytics-screen">
+        <h2>Post-Game Analytics</h2>
+        <div class="chart-container">
+            <canvas id="coreStabilityChart"></canvas>
+        </div>
+        <p id="intervention-score-display">Intervention Economy: N/A</p>
+        <p id="flux-resilience-display">Flux Resilience: N/A</p>
+        <button id="back-to-game-over-button" class="ui-button">Back</button>
+    </div>
+
+    <script>
+        // Game Configuration
+        const CORE_START_ENERGY = 100;
+        const CORE_MAX_ENERGY = 200;
+        const CORE_MIN_ENERGY_THRESHOLD = 20; // Game over if below this for too long
+        const HARMONY_ZONE_LOW = 80;
+        const HARMONY_ZONE_HIGH = 120;
+        const ORB_SPAWN_INTERVAL_MIN = 500; // ms
+        const ORB_SPAWN_INTERVAL_MAX = 2000; // ms
+        const ENERGY_DRAIN_RATE = 0.1; // Energy lost per frame if not in harmony
+        const ENERGY_GAIN_IN_HARMONY = 0.05; // Slight energy gain/stabilization in harmony
+        const CORE_UNSTABLE_DURATION_LIMIT = 3000; // ms, 3 seconds outside min threshold
+        
+        // Game State
+        let core;
+        let orbs = [];
+        let particles = [];
+        let harmonyQuotient = 0;
+        let gameStartTime;
+        let lastOrbSpawnTime = 0;
+        let nextOrbSpawnInterval;
+        let gameState = 'start'; // 'start', 'playing', 'gameover', 'analytics'
+        
+        let coreStabilityHistory = [];
+        let interventionCount = 0;
+        let fluxEventsSurvived = 0;
+        let activeFluxEvent = null;
+        let fluxEventTimer = 0;
+        let nextFluxEventTime = 0;
+
+        let coreUnstableTimer = 0;
+
+        // DOM Elements
+        const gameContainer = document.getElementById('game-container');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const analyticsScreen = document.getElementById('analytics-screen');
+        const startButton = document.getElementById('start-button');
+        const restartButton = document.getElementById('restart-button');
+        const analyticsButton = document.getElementById('analytics-button');
+        const backToGameOverButton = document.getElementById('back-to-game-over-button');
+        const scoreDisplay = document.getElementById('score-display');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const fluxEventDisplay = document.getElementById('flux-event-display');
+        const interventionScoreDisplay = document.getElementById('intervention-score-display');
+        const fluxResilienceDisplay = document.getElementById('flux-resilience-display');
+
+
+        let p5Canvas;
+
+        function setup() {
+            let canvasWidth = gameContainer.offsetWidth;
+            let canvasHeight = gameContainer.offsetHeight;
+            p5Canvas = createCanvas(canvasWidth, canvasHeight);
+            p5Canvas.parent('game-container');
+            
+            textAlign(CENTER, CENTER);
+            frameRate(60);
+            resetGame(); // Initialize variables without starting play
+
+            // UI Event Listeners
+            startButton.addEventListener('click', () => {
+                anime({
+                    targets: startScreen,
+                    opacity: 0,
+                    duration: 500,
+                    easing: 'easeInOutQuad',
+                    complete: () => {
+                        startScreen.style.display = 'none';
+                        startGame();
+                    }
+                });
+            });
+
+            restartButton.addEventListener('click', () => {
+                anime({
+                    targets: gameOverScreen,
+                    opacity: 0,
+                    duration: 500,
+                    easing: 'easeInOutQuad',
+                    complete: () => {
+                        gameOverScreen.style.display = 'none';
+                        startGame();
+                    }
+                });
+            });
+
+            analyticsButton.addEventListener('click', () => {
+                anime({
+                    targets: gameOverScreen,
+                    opacity: 0,
+                    duration: 300,
+                    easing: 'easeInOutQuad',
+                    complete: () => {
+                        gameOverScreen.style.display = 'none';
+                        analyticsScreen.style.display = 'flex'; // Use flex to align items
+                        analyticsScreen.style.opacity = 0;
+                        renderAnalytics();
+                        anime({
+                            targets: analyticsScreen,
+                            opacity: 1,
+                            duration: 500,
+                            easing: 'easeInOutQuad'
+                        });
+                    }
+                });
+            });
+            
+            backToGameOverButton.addEventListener('click', () => {
+                 anime({
+                    targets: analyticsScreen,
+                    opacity: 0,
+                    duration: 300,
+                    easing: 'easeInOutQuad',
+                    complete: () => {
+                        analyticsScreen.style.display = 'none';
+                        gameOverScreen.style.display = 'flex'; // Show it again
+                         anime({
+                            targets: gameOverScreen,
+                            opacity: 1,
+                            duration: 500,
+                            easing: 'easeInOutQuad'
+                        });
+                    }
+                });
+            });
+        }
+        
+        function windowResized() {
+            let canvasWidth = gameContainer.offsetWidth;
+            let canvasHeight = gameContainer.offsetHeight;
+            resizeCanvas(canvasWidth, canvasHeight);
+            if (core) core.pos = createVector(width / 2, height / 2); // Recenter core
+        }
+
+        function resetGame() {
+            core = new Core(width / 2, height / 2, CORE_START_ENERGY);
+            orbs = [];
+            particles = [];
+            harmonyQuotient = 0;
+            lastOrbSpawnTime = 0;
+            nextOrbSpawnInterval = random(ORB_SPAWN_INTERVAL_MIN, ORB_SPAWN_INTERVAL_MAX);
+            
+            coreStabilityHistory = [];
+            interventionCount = 0;
+            fluxEventsSurvived = 0;
+            activeFluxEvent = null;
+            fluxEventTimer = 0;
+            nextFluxEventTime = random(15000, 25000); // First flux event in 15-25s
+            coreUnstableTimer = 0;
+
+            scoreDisplay.style.opacity = 0;
+            fluxEventDisplay.style.opacity = 0;
+        }
+
+        function startGame() {
+            resetGame();
+            gameState = 'playing';
+            gameStartTime = millis();
+            scoreDisplay.style.opacity = 1;
+            anime({
+                targets: scoreDisplay,
+                translateY: [-20, 0],
+                opacity: [0, 1],
+                duration: 800,
+                easing: 'easeOutElastic'
+            });
+        }
+
+        function draw() {
+            background(30, 40, 70); // Dark blueish background
+
+            if (gameState === 'playing') {
+                handlePlayingState();
+            } else if (gameState === 'gameover') {
+                // Game over screen is handled by DOM elements
+                // Could draw something on canvas if desired, like a faded game state
+            } else if (gameState === 'start') {
+                // Start screen is handled by DOM
+            }
+
+            // Always draw particles if any
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                particles[i].display();
+                if (particles[i].isFinished()) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        function handlePlayingState() {
+            // Update and display core
+            core.update();
+            core.display();
+
+            // Spawn orbs
+            if (millis() - lastOrbSpawnTime > nextOrbSpawnInterval) {
+                spawnOrb();
+                lastOrbSpawnTime = millis();
+                nextOrbSpawnInterval = random(ORB_SPAWN_INTERVAL_MIN, ORB_SPAWN_INTERVAL_MAX - (millis() - gameStartTime)/1000 * 10); // Difficulty increases slightly
+                if (nextOrbSpawnInterval < 300) nextOrbSpawnInterval = 300; // Cap minimum interval
+            }
+
+            // Update and display orbs
+            for (let i = orbs.length - 1; i >= 0; i--) {
+                let orb = orbs[i];
+                orb.update();
+                orb.display();
+
+                if (orb.isOffScreen(width, height)) {
+                    orbs.splice(i, 1);
+                    // Penalize for missed orbs?
+                    // core.energy -= 5; 
+                } else if (orb.checkCollision(core)) {
+                    core.absorb(orb);
+                    createBurst(orb.pos.x, orb.pos.y, orb.color);
+                    orbs.splice(i, 1);
+                }
+            }
+            
+            // Handle Flux Events
+            handleFluxEvents();
+
+            // Update score
+            if (core.isInHarmony()) {
+                 harmonyQuotient += 0.5; // Points for being in harmony
+            } else {
+                 harmonyQuotient += 0.1; // Still some points for playing
+            }
+            scoreDisplay.textContent = `Harmony: ${Math.floor(harmonyQuotient)}`;
+            
+            // Record stability history for chart (every 30 frames for performance)
+            if (frameCount % 30 === 0) {
+                 coreStabilityHistory.push({x: (millis() - gameStartTime)/1000, y: core.energy});
+            }
+
+            // Check game over condition
+            if (core.energy < CORE_MIN_ENERGY_THRESHOLD) {
+                coreUnstableTimer += deltaTime; // deltaTime is p5 global for frame duration
+                if (coreUnstableTimer > CORE_UNSTABLE_DURATION_LIMIT) {
+                    gameOver();
+                }
+            } else {
+                coreUnstableTimer = 0; // Reset timer if above threshold
+            }
+             if (core.energy <= 0) { // Instant game over if energy hits 0
+                gameOver();
+            }
+        }
+
+        function gameOver() {
+            gameState = 'gameover';
+            finalScoreDisplay.textContent = `Final Harmony: ${Math.floor(harmonyQuotient)}`;
+            
+            anime({
+                targets: scoreDisplay,
+                opacity: 0,
+                duration: 300
+            });
+            if(activeFluxEvent) {
+                fluxEventDisplay.style.opacity = 0; // Hide flux display immediately
+            }
+
+            gameOverScreen.style.display = 'flex';
+            anime({
+                targets: gameOverScreen,
+                opacity: [0, 1],
+                translateY: [50, 0],
+                duration: 800,
+                easing: 'easeOutElastic'
+            });
+        }
+
+        function spawnOrb() {
+            let edge = floor(random(4));
+            let x, y, vx, vy;
+            let orbSize = random(10, 25);
+            let type = random() > 0.6 ? 'negative' : 'positive'; // More positive orbs
+            
+            // Apply flux event modifications if active
+            if (activeFluxEvent && activeFluxEvent.type === 'volatileOrbs') {
+                type = random() > 0.5 ? 'negative' : 'positive'; // More unpredictable
+                orbSize = random(5, 35);
+            }
+
+
+            if (edge === 0) { // Top
+                x = random(width); y = -orbSize;
+            } else if (edge === 1) { // Right
+                x = width + orbSize; y = random(height);
+            } else if (edge === 2) { // Bottom
+                x = random(width); y = height + orbSize;
+            } else { // Left
+                x = -orbSize; y = random(height);
+            }
+
+            let target = createVector(core.pos.x + random(-width/4, width/4), core.pos.y + random(-height/4, height/4));
+            let vel = p5.Vector.sub(target, createVector(x,y));
+            vel.normalize();
+            vel.mult(random(1, 3)); // Orb speed
+            
+            if (activeFluxEvent && activeFluxEvent.type === 'fastOrbs') {
+                 vel.mult(1.8);
+            }
+
+            orbs.push(new Orb(x, y, orbSize, type, vel));
+        }
+
+        function mouseDragged() {
+            if (gameState !== 'playing') return;
+            interventionCount++;
+            let mousePos = createVector(mouseX, mouseY);
+            for (let orb of orbs) {
+                let d = p5.Vector.dist(mousePos, orb.pos);
+                if (d < 50 + orb.radius) { // Influence radius
+                    let force = p5.Vector.sub(orb.pos, mousePos); // Repulsive force
+                    force.normalize();
+                    force.mult(0.8); // Force strength
+                    orb.applyForce(force);
+                    createInteractionEffect(orb.pos.x, orb.pos.y);
+                }
+            }
+            return false; // Prevent default browser drag behavior
+        }
+        
+        function mousePressed() { // For tap-like interaction on first click
+            if (gameState !== 'playing') return;
+            interventionCount++; // Count this as an intervention too
+            let mousePos = createVector(mouseX, mouseY);
+            for (let orb of orbs) {
+                let d = p5.Vector.dist(mousePos, orb.pos);
+                if (d < 50 + orb.radius) {
+                    let force = p5.Vector.sub(orb.pos, mousePos);
+                    force.normalize();
+                    force.mult(1.2); // Stronger initial push
+                    orb.applyForce(force);
+                    createInteractionEffect(orb.pos.x, orb.pos.y, true);
+                }
+            }
+             return false;
+        }
+
+        function createBurst(x, y, orbColor) {
+            let numParticles = 20;
+            let baseCol = color(orbColor);
+            for (let i = 0; i < numParticles; i++) {
+                let pColor = color(hue(baseCol), saturation(baseCol) * random(0.7,1), brightness(baseCol)*random(0.7,1), 200);
+                particles.push(new Particle(x, y, pColor));
+            }
+            // Add subtle screen shake for absorption
+            anime({
+                targets: '#game-container',
+                translateX: [ { value: random(-3,3), duration: 50}, { value: 0, duration: 50, delay: 50}],
+                translateY: [ { value: random(-3,3), duration: 50}, { value: 0, duration: 50, delay: 50}],
+                easing: 'easeInOutSine',
+                duration: 150
+            });
+        }
+        
+        function createInteractionEffect(x,y, strong = false) {
+            let numParticles = strong ? 8 : 4;
+            let pColor = color(200, 200, 255, 150);
+            for (let i = 0; i < numParticles; i++) {
+                 particles.push(new Particle(x, y, pColor, random(1, strong ? 3 : 2)));
+            }
+        }
+        
+        // FLUX EVENTS
+        const fluxEventTypes = [
+            { 
+                name: "Gravity Shift!", 
+                duration: 8000, // ms
+                type: 'gravityShift',
+                apply: () => { 
+                    for(let orb of orbs) orb.tempGravity = createVector(random(-0.1, 0.1), random(-0.05, 0.15)); 
+                },
+                remove: () => { for(let orb of orbs) orb.tempGravity = null; }
+            },
+            { 
+                name: "Volatile Orbs!", 
+                duration: 10000, 
+                type: 'volatileOrbs', // Handled in spawnOrb
+                apply: () => {}, 
+                remove: () => {} 
+            },
+            { 
+                name: "Fast Orbs!", 
+                duration: 7000, 
+                type: 'fastOrbs', // Handled in spawnOrb and Orb update for existing
+                apply: () => { orbs.forEach(o => o.vel.mult(1.5));}, 
+                remove: () => { orbs.forEach(o => o.vel.div(1.5));} 
+            },
+            {
+                name: "Core Overcharge!",
+                duration: 5000,
+                type: 'coreOvercharge',
+                apply: () => { core.overchargeFactor = 1.5; }, // Core gains/loses energy faster
+                remove: () => { core.overchargeFactor = 1.0; }
+            }
+        ];
+
+        function triggerFluxEvent() {
+            if (activeFluxEvent) return; // Only one at a time
+
+            activeFluxEvent = random(fluxEventTypes);
+            activeFluxEvent.apply();
+            fluxEventTimer = activeFluxEvent.duration;
+            nextFluxEventTime = millis() + activeFluxEvent.duration + random(10000, 20000); // Next one after this ends + delay
+
+            fluxEventDisplay.textContent = activeFluxEvent.name;
+            fluxEventDisplay.style.backgroundColor = `rgba(${floor(random(150,255))}, ${floor(random(0,100))}, ${floor(random(0,100))}, 0.7)`;
+            
+            anime({
+                targets: fluxEventDisplay,
+                opacity: [0, 1],
+                scale: [0.5, 1],
+                translateY: [-20, 0],
+                duration: 600,
+                easing: 'easeOutElastic'
+            });
+        }
+
+        function handleFluxEvents() {
+            if (millis() > nextFluxEventTime && !activeFluxEvent) {
+                triggerFluxEvent();
+            }
+
+            if (activeFluxEvent) {
+                fluxEventTimer -= deltaTime;
+                if (fluxEventTimer <= 0) {
+                    activeFluxEvent.remove();
+                    activeFluxEvent = null;
+                    fluxEventsSurvived++;
+                    anime({
+                        targets: fluxEventDisplay,
+                        opacity: 0,
+                        scale: 0.8,
+                        duration: 400,
+                        easing: 'easeInQuad'
+                    });
+                } else {
+                    // Some flux events might need continuous application in draw loop
+                    if(activeFluxEvent.type === 'gravityShift' && activeFluxEvent.apply) {
+                        // Gravity is applied to orb.vel directly in orb.update
+                    }
+                }
+            }
+        }
+
+
+        // --- Classes ---
+        class Core {
+            constructor(x, y, initialEnergy) {
+                this.pos = createVector(x, y);
+                this.baseRadius = 30;
+                this.energy = initialEnergy;
+                this.targetRadius = this.baseRadius + this.energy / 10;
+                this.currentRadius = this.targetRadius;
+                this.color = color(100, 200, 255); // Calm blue
+                this.harmonyPulse = 0;
+                this.overchargeFactor = 1.0; // For flux event
+            }
+
+            update() {
+                this.targetRadius = this.baseRadius + this.energy / 15; // Energy affects size
+                this.currentRadius = lerp(this.currentRadius, this.targetRadius, 0.1);
+
+                if (this.isInHarmony()) {
+                    this.energy += ENERGY_GAIN_IN_HARMONY * this.overchargeFactor; // Slow gain or stabilization
+                    this.color = color(100, 220, 180); // Greenish tint for harmony
+                } else {
+                    this.energy -= ENERGY_DRAIN_RATE * this.overchargeFactor; // Drain if not in harmony
+                    if (this.energy < HARMONY_ZONE_LOW) {
+                        this.color = color(255, 150, 100); // Orangey when low
+                    } else {
+                        this.color = color(200, 180, 255); // Purplish when high
+                    }
+                }
+                this.energy = constrain(this.energy, 0, CORE_MAX_ENERGY);
+            }
+
+            isInHarmony() {
+                return this.energy >= HARMONY_ZONE_LOW && this.energy <= HARMONY_ZONE_HIGH;
+            }
+
+            absorb(orb) {
+                let energyChange = 0;
+                if (orb.type === 'positive') {
+                    energyChange = orb.radius * 1.5; // Bigger orbs give more
+                } else {
+                    energyChange = -orb.radius * 2; // Negative orbs are more impactful
+                }
+                this.energy += energyChange * this.overchargeFactor;
+                
+                // Animate score text for absorption
+                let popup = document.createElement('div');
+                popup.textContent = (energyChange * this.overchargeFactor > 0 ? '+' : '') + Math.round(energyChange * this.overchargeFactor);
+                popup.style.position = 'absolute';
+                popup.style.left = `${this.pos.x + random(-20,20)}px`;
+                popup.style.top = `${this.pos.y - this.currentRadius - 20}px`;
+                popup.style.color = energyChange > 0 ? '#4CAF50' : '#F44336';
+                popup.style.fontSize = '1.5em';
+                popup.style.fontWeight = 'bold';
+                popup.style.textShadow = '1px 1px 2px black';
+                document.getElementById('game-container').appendChild(popup);
+
+                anime({
+                    targets: popup,
+                    translateY: -50,
+                    opacity: 0,
+                    duration: 1500,
+                    easing: 'easeOutExpo',
+                    complete: () => {
+                        popup.remove();
+                    }
+                });
+            }
+
+            display() {
+                // Harmony Zone visual
+                let hzLowRadius = this.baseRadius + HARMONY_ZONE_LOW / 15;
+                let hzHighRadius = this.baseRadius + HARMONY_ZONE_HIGH / 15;
+                
+                noFill();
+                strokeWeight(2);
+                stroke(255, 255, 255, 50);
+                ellipse(this.pos.x, this.pos.y, hzLowRadius * 2, hzLowRadius * 2);
+                ellipse(this.pos.x, this.pos.y, hzHighRadius * 2, hzHighRadius * 2);
+                
+                // Pulsing effect when in harmony
+                if (this.isInHarmony()) {
+                    this.harmonyPulse += 0.1;
+                    let pulseSize = sin(this.harmonyPulse) * 5;
+                    strokeWeight(3);
+                    stroke(hue(this.color), saturation(this.color), brightness(this.color), 100);
+                    ellipse(this.pos.x, this.pos.y, (this.currentRadius + pulseSize) * 2, (this.currentRadius + pulseSize) * 2);
+                }
+
+                // Core body
+                noStroke();
+                fill(this.color);
+                ellipse(this.pos.x, this.pos.y, this.currentRadius * 2, this.currentRadius * 2);
+
+                // Inner glow
+                for (let i = 0; i < 3; i++) {
+                    fill(hue(this.color), saturation(this.color), brightness(this.color) + i*10, 50 - i*15);
+                    ellipse(this.pos.x, this.pos.y, (this.currentRadius - i*5) * 2, (this.currentRadius - i*5) * 2);
+                }
+            }
+        }
+
+        class Orb {
+            constructor(x, y, r, type, vel) {
+                this.pos = createVector(x, y);
+                this.vel = vel || p5.Vector.random2D().mult(random(1,2));
+                this.acc = createVector(0, 0);
+                this.radius = r;
+                this.type = type; // 'positive' or 'negative'
+                this.color = (type === 'positive') ? color(180, 255, 180, 220) : color(255, 180, 180, 220); // Light green / Light red
+                this.maxSpeed = 4;
+                this.tempGravity = null; // For flux event
+            }
+
+            applyForce(force) {
+                this.acc.add(force);
+            }
+
+            update() {
+                if(this.tempGravity) { // Apply flux gravity
+                    this.applyForce(this.tempGravity);
+                }
+                
+                // Attraction/repulsion to core (subtle baseline behavior)
+                let coreDirection = p5.Vector.sub(core.pos, this.pos);
+                let distToCore = coreDirection.mag();
+                coreDirection.normalize();
+                if (this.type === 'positive') {
+                     coreDirection.mult(20 / (distToCore + 0.1)); // Weaker attraction
+                } else {
+                     coreDirection.mult(-10 / (distToCore + 0.1)); // Slight repulsion for negative
+                }
+                //this.applyForce(coreDirection);
+
+
+                this.vel.add(this.acc);
+                this.vel.limit(this.maxSpeed * (activeFluxEvent && activeFluxEvent.type === 'fastOrbs' ? 1.8 : 1));
+                this.pos.add(this.vel);
+                this.acc.mult(0); // Reset acceleration
+            }
+
+            display() {
+                noStroke();
+                fill(this.color);
+                ellipse(this.pos.x, this.pos.y, this.radius * 2, this.radius * 2);
+                // Inner highlight
+                fill(red(this.color)+30, green(this.color)+30, blue(this.color)+30, 100);
+                ellipse(this.pos.x - this.radius*0.2, this.pos.y - this.radius*0.2, this.radius, this.radius);
+            }
+
+            checkCollision(coreObj) {
+                return p5.Vector.dist(this.pos, coreObj.pos) < this.radius + coreObj.currentRadius;
+            }
+
+            isOffScreen(w, h) {
+                return (this.pos.x < -this.radius * 2 || this.pos.x > w + this.radius * 2 ||
+                        this.pos.y < -this.radius * 2 || this.pos.y > h + this.radius * 2);
+            }
+        }
+
+        class Particle {
+            constructor(x, y, pColor, speedMultiplier = 1) {
+                this.pos = createVector(x, y);
+                this.vel = p5.Vector.random2D().mult(random(1, 3) * speedMultiplier);
+                this.lifespan = 255;
+                this.pColor = pColor || color(255, 220, 150, 200); // Default particle color
+                this.radius = random(2,5);
+            }
+
+            update() {
+                this.vel.mult(0.95); // Slow down
+                this.pos.add(this.vel);
+                this.lifespan -= 5;
+            }
+
+            display() {
+                noStroke();
+                fill(red(this.pColor), green(this.pColor), blue(this.pColor), this.lifespan);
+                ellipse(this.pos.x, this.pos.y, this.radius * 2);
+            }
+
+            isFinished() {
+                return this.lifespan < 0;
+            }
+        }
+        
+        // --- Analytics ---
+        let coreStabilityChartInstance = null;
+        function renderAnalytics() {
+            // 1. Core Stability Graph
+            const ctx = document.getElementById('coreStabilityChart').getContext('2d');
+            if(coreStabilityChartInstance) {
+                coreStabilityChartInstance.destroy(); // Destroy previous chart if exists
+            }
+            coreStabilityChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'Core Energy Over Time',
+                        data: coreStabilityHistory, // [{x: time, y: energy}, ...]
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1,
+                        fill: false
+                    },
+                    {
+                        label: 'Harmony Zone (Low)',
+                        data: coreStabilityHistory.map(d => ({x: d.x, y: HARMONY_ZONE_LOW})),
+                        borderColor: 'rgba(255, 200, 100, 0.5)',
+                        borderDash: [5,5],
+                        pointRadius: 0,
+                        fill: false
+                    },
+                    {
+                        label: 'Harmony Zone (High)',
+                        data: coreStabilityHistory.map(d => ({x: d.x, y: HARMONY_ZONE_HIGH})),
+                        borderColor: 'rgba(255, 200, 100, 0.5)',
+                        borderDash: [5,5],
+                        pointRadius: 0,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'linear', // If time is numeric seconds
+                            title: { display: true, text: 'Time (seconds)' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Core Energy' },
+                            min: 0,
+                            max: CORE_MAX_ENERGY 
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Core Stability Timeline'
+                        }
+                    }
+                }
+            });
+
+            // 2. Intervention Economy Score
+            let durationSeconds = (millis() - gameStartTime) / 1000;
+            let interventionsPerMinute = interventionCount > 0 && durationSeconds > 0 ? (interventionCount / durationSeconds) * 60 : 0;
+            let economyScore = 1000 - interventionsPerMinute * 5; // Simple formula
+            economyScore = Math.max(0, Math.floor(economyScore));
+            interventionScoreDisplay.textContent = `Intervention Economy Score: ${economyScore} (Interventions: ${interventionCount}, IPM: ${interventionsPerMinute.toFixed(1)})`;
+
+            // 3. Flux Resilience Rating
+            fluxResilienceDisplay.textContent = `Flux Events Survived: ${fluxEventsSurvived}`;
+        }
+
+    </script>
+</body>
+</html>
